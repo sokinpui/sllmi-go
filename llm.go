@@ -3,51 +3,45 @@ package sllmigo
 import (
 	"context"
 	"fmt"
-	"os"
 )
 
-// LLM defines the interface for a large language model.
 type LLM interface {
 	Generate(ctx context.Context, prompt string, config *Config) (string, error)
 	GenerateStream(ctx context.Context, prompt string, config *Config) (<-chan string, <-chan error)
 	CountTokens(prompt string) (int, error)
 }
 
-// Registry holds all available LLM implementations.
+type ModelProvider func() (map[string]LLM, error)
+
+var providers []ModelProvider
+
+func RegisterProvider(provider ModelProvider) {
+	providers = append(providers, provider)
+}
+
 type Registry struct {
 	models map[string]LLM
 }
 
-// New creates a new LLM registry and initializes the models.
 func New() (*Registry, error) {
-	apiKey := os.Getenv("GENAI_API_KEY")
-	if apiKey == "" {
-		fmt.Println("Warning: GENAI_API_KEY environment variable not set.")
-	}
-
-	models := make(map[string]LLM)
-
-	modelCodes := []string{
-		"gemini-2.5-pro",
-		"gemini-2.5-flash",
-		"gemini-2.5-flash-lite",
-		"gemini-2.0-flash",
-		"gemini-2.0-flash-lite",
-		"gemma-3-27b-it",
-	}
-
-	for _, code := range modelCodes {
-		model, err := NewGeminiModel(context.Background(), code, apiKey)
+	allModels := make(map[string]LLM)
+	for _, provider := range providers {
+		providerModels, err := provider()
 		if err != nil {
-			return nil, fmt.Errorf("failed to initialize model %s: %w", code, err)
+			return nil, fmt.Errorf("failed to initialize a model provider: %w", err)
 		}
-		models[code] = model
+		for name, model := range providerModels {
+			if _, exists := allModels[name]; exists {
+				// Handle potential model name collisions
+				fmt.Printf("Warning: Model '%s' is being overwritten by a new provider.\n", name)
+			}
+			allModels[name] = model
+		}
 	}
 
-	return &Registry{models: models}, nil
+	return &Registry{models: allModels}, nil
 }
 
-// GetModel retrieves a model from the registry by its code.
 func (r *Registry) GetModel(modelCode string) (LLM, error) {
 	model, ok := r.models[modelCode]
 	if !ok {
@@ -56,7 +50,6 @@ func (r *Registry) GetModel(modelCode string) (LLM, error) {
 	return model, nil
 }
 
-// ListModels returns a list of all available model codes.
 func (r *Registry) ListModels() []string {
 	keys := make([]string, 0, len(r.models))
 	for k := range r.models {

@@ -3,11 +3,46 @@ package sllmigo
 import (
 	"context"
 	"fmt"
+	"os"
 
 	vgenai "cloud.google.com/go/vertexai/genai"
 	"cloud.google.com/go/vertexai/genai/tokenizer"
 	"google.golang.org/genai"
 )
+
+func init() {
+	RegisterProvider(newGeminiProvider)
+}
+
+func newGeminiProvider() (map[string]LLM, error) {
+	apiKey := os.Getenv("GENAI_API_KEY")
+	if apiKey == "" {
+		// Return an error as the provider cannot function without an API key.
+		return nil, fmt.Errorf("%w: GENAI_API_KEY environment variable not set for Gemini provider", ErrConfiguration)
+	}
+
+	modelCodes := []string{
+		"gemini-2.5-pro",
+		"gemini-2.5-flash",
+		"gemini-2.5-flash-lite",
+		"gemini-2.0-flash",
+		"gemini-2.0-flash-lite",
+		"gemma-3-27b-it",
+	}
+
+	models := make(map[string]LLM)
+	ctx := context.Background()
+
+	for _, code := range modelCodes {
+		model, err := NewGeminiModel(ctx, code, apiKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create Gemini model '%s': %w", code, err)
+		}
+		models[code] = model
+	}
+
+	return models, nil
+}
 
 type GeminiModel struct {
 	client *genai.Client
