@@ -5,41 +5,44 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/google/generative-ai-go/genai"
-	"google.golang.org/api/option"
+	vgenai "cloud.google.com/go/vertexai/genai"
+	"cloud.google.com/go/vertexai/genai/tokenizer"
+	"google.golang.org/genai"
 )
 
-// GeminiModel is an implementation of the LLM interface for Google's Gemini models.
 type GeminiModel struct {
-	client    *genai.GenerativeModel
-	tokenizer *genai.Tokenizer
+	client *genai.Client
+	model  string
 }
 
-// NewGeminiModel creates and initializes a new GeminiModel.
 func NewGeminiModel(ctx context.Context, modelCode, apiKey string) (*GeminiModel, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("%w: GENAI_API_KEY is required for GeminiModel", ErrConfiguration)
 	}
 
-	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
+	client, err := genai.NewClient(ctx, &genai.ClientConfig{
+		APIKey:  apiKey,
+		Backend: genai.BackendGeminiAPI,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create genai client: %w", err)
 	}
 
-	model := client.GenerativeModel(modelCode)
-	tokenizer := client.Tokenizer()
-
 	return &GeminiModel{
-		client:    model,
-		tokenizer: tokenizer,
+		client: client,
+		model:  modelCode,
 	}, nil
 }
 
 // Generate performs a non-streaming text generation.
 func (m *GeminiModel) Generate(ctx context.Context, prompt string, config *Config) (string, error) {
-	m.applyConfig(config)
+	genConfig := getGenConfig(config)
 
-	resp, err := m.client.GenerateContent(ctx, genai.Text(prompt))
+	resp, err := m.client.Models.GenerateContent(ctx,
+		m.model,
+		genai.Text(prompt),
+		genConfig,
+	)
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrGeneration, err)
 	}
@@ -53,7 +56,7 @@ func (m *GeminiModel) Generate(ctx context.Context, prompt string, config *Confi
 
 // GenerateStream performs a streaming text generation.
 func (m *GeminiModel) GenerateStream(ctx context.Context, prompt string, config *Config) (<-chan string, <-chan error) {
-	m.applyConfig(config)
+	genConfig := getGenConfig(config)
 
 	outCh := make(chan string)
 	errCh := make(chan error, 1)
@@ -62,7 +65,11 @@ func (m *GeminiModel) GenerateStream(ctx context.Context, prompt string, config 
 		defer close(outCh)
 		defer close(errCh)
 
-		iter := m.client.GenerateContentStream(ctx, genai.Text(prompt))
+		iter := m.client.Models.GenerateContentStream(ctx,
+			m.model,
+			genai.Text(prompt),
+			genConfig,
+		)
 		for {
 			resp, err := iter.Next()
 			if err == io.EOF {
@@ -83,28 +90,31 @@ func (m *GeminiModel) GenerateStream(ctx context.Context, prompt string, config 
 
 // CountTokens counts the number of tokens in a prompt.
 func (m *GeminiModel) CountTokens(prompt string) (int, error) {
-	resp, err := m.tokenizer.CountTokens(context.Background(), genai.Text(prompt))
+	tok, err := tokenizer.New("gemini-1.5-flash")
 	if err != nil {
 		return 0, fmt.Errorf("token counting failed: %w", err)
 	}
-	return int(resp.TotalTokens), nil
+
+	ntoks, err := tok.CountTokens(vgenai.Text(prompt))
+	if err != nil {
+		return 0, fmt.Errorf("token counting failed: %w", err)
+	}
+
+	return int(ntoks.TotalTokens), nil
 }
 
-// applyConfig applies the generation configuration to the model.
-func (m *GeminiModel) applyConfig(config *Config) {
+func getGenConfig(config *Config) *genai.GenerateContentConfig {
 	if config == nil {
-		return
+		return &genai.GenerateContentConfig{}
 	}
-	if config.Temperature != nil {
-		m.client.Temperature = config.Temperature
-	}
-	if config.TopP != nil {
-		m.client.TopP = config.TopP
-	}
+
 	if config.TopK != nil {
-		m.client.TopK = config.TopK
 	}
-	if config.OutputLength != nil {
-		m.client.MaxOutputTokens = config.OutputLength
+
+	return &genai.GenerateContentConfig{
+		Temperature:     config.Temperature,
+		TopP:            config.TopP,
+		TopK:            config.TopK,
+		MaxOutputTokens: config.OutputLength,
 	}
 }
