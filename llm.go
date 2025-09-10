@@ -28,9 +28,12 @@ func New() (*Registry, error) {
 	models := make(map[string]LLM)
 
 	modelCodes := []string{
-		"gemini-1.5-pro-latest",
-		"gemini-1.5-flash-latest",
-		"gemini-1.0-pro",
+		"gemini-2.5-pro",
+		"gemini-2.5-flash",
+		"gemini-2.5-flash-lite",
+		"gemini-2.0-flash",
+		"gemini-2.0-flash-lite",
+		"gemma-3-27b-it",
 	}
 
 	for _, code := range modelCodes {
