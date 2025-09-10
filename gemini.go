@@ -3,7 +3,6 @@ package sllmigo
 import (
 	"context"
 	"fmt"
-	"io"
 
 	vgenai "cloud.google.com/go/vertexai/genai"
 	"cloud.google.com/go/vertexai/genai/tokenizer"
@@ -70,21 +69,16 @@ func (m *GeminiModel) GenerateStream(ctx context.Context, prompt string, config 
 			genai.Text(prompt),
 			genConfig,
 		)
-		for {
-			resp, err := iter.Next()
-			if err == io.EOF {
-				break
-			}
+		for resp, err := range iter {
 			if err != nil {
 				errCh <- fmt.Errorf("%w: %v", ErrGeneration, err)
 				return
 			}
-			if len(resp.Candidates) > 0 && len(resp.Candidates[0].Content.Parts) > 0 {
+			if resp != nil && len(resp.Candidates) > 0 && len(resp.Candidates[0].Content.Parts) > 0 {
 				outCh <- fmt.Sprintf("%s", resp.Candidates[0].Content.Parts[0])
 			}
 		}
 	}()
-
 	return outCh, errCh
 }
 
@@ -106,9 +100,6 @@ func (m *GeminiModel) CountTokens(prompt string) (int, error) {
 func getGenConfig(config *Config) *genai.GenerateContentConfig {
 	if config == nil {
 		return &genai.GenerateContentConfig{}
-	}
-
-	if config.TopK != nil {
 	}
 
 	return &genai.GenerateContentConfig{
