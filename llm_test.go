@@ -2,6 +2,7 @@ package sllmigo_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -98,7 +99,8 @@ func TestGeminiModel(t *testing.T) {
 		if response == "" {
 			t.Error("Generate() returned an empty response")
 		}
-		t.Logf("Generate() response:\n%s", response)
+		fmt.Printf("\n--- Generate() Response ---\n%s\n---------------------------\n", response)
+		// t.Logf is still useful for verbose mode
 	})
 
 	t.Run("GenerateStream", func(t *testing.T) {
@@ -138,6 +140,7 @@ func TestGeminiModel(t *testing.T) {
 		if fullResponse == "" {
 			t.Error("GenerateStream() resulted in an empty string")
 		}
-		t.Logf("GenerateStream() response:\n%s", fullResponse)
+		fmt.Printf("\n--- GenerateStream() Response ---\n%s\n-------------------------------\n", fullResponse)
+		// t.Logf is still useful for verbose mode
 	})
 }
