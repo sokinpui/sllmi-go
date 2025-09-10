@@ -1,4 +1,4 @@
-package sllmigo_test
+package sllmi_test
 
 import (
 	"context"

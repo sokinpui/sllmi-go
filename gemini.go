@@ -1,4 +1,4 @@
-package sllmigo
+package sllmi
 
 import (
 	"context"
