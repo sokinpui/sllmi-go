@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"sllmi-go"
+	"github.com/sokinpui/sllmi-go"
 )
 
 // checkAPIKey skips the test if the GENAI_API_KEY is not set.
@@ -21,7 +21,7 @@ func checkAPIKey(t *testing.T) {
 func TestLLMRegistry(t *testing.T) {
 	checkAPIKey(t)
 
-	registry, err := sllmigo.New()
+	registry, err := sllmi.New()
 	if err != nil {
 		t.Fatalf("New() failed: %v", err)
 	}
@@ -60,7 +60,7 @@ func TestLLMRegistry(t *testing.T) {
 func TestGeminiModel(t *testing.T) {
 	checkAPIKey(t)
 
-	registry, err := sllmigo.New()
+	registry, err := sllmi.New()
 	if err != nil {
 		t.Fatalf("New() failed: %v", err)
 	}

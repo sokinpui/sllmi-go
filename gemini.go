@@ -85,7 +85,7 @@ func (m *GeminiModel) Generate(ctx context.Context, prompt string, config *Confi
 		return "", fmt.Errorf("%w: no content in response", ErrGeneration)
 	}
 
-	return fmt.Sprintf("%s", resp.Candidates[0].Content.Parts[0]), nil
+	return resp.Text(), nil
 }
 
 // GenerateStream performs a streaming text generation.
@@ -110,7 +110,7 @@ func (m *GeminiModel) GenerateStream(ctx context.Context, prompt string, config 
 				return
 			}
 			if resp != nil && len(resp.Candidates) > 0 && len(resp.Candidates[0].Content.Parts) > 0 {
-				outCh <- fmt.Sprintf("%s", resp.Candidates[0].Content.Parts[0])
+				outCh <- resp.Text()
 			}
 		}
 	}()
