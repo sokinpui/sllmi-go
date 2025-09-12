@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	vgenai "cloud.google.com/go/vertexai/genai"
 	"cloud.google.com/go/vertexai/genai/tokenizer"
@@ -15,10 +16,14 @@ func init() {
 }
 
 func newGeminiProvider() (map[string]LLM, error) {
-	apiKey := os.Getenv("GENAI_API_KEY")
-	if apiKey == "" {
+	apiKeysVar := os.Getenv("GENAI_API_KEYS")
+	if apiKeysVar == "" {
 		// Return an error as the provider cannot function without an API key.
-		return nil, fmt.Errorf("%w: GENAI_API_KEY environment variable not set for Gemini provider", ErrConfiguration)
+		return nil, fmt.Errorf("%w: GENAI_API_KEYS environment variable not set for Gemini provider", ErrConfiguration)
+	}
+	apiKeys := strings.Split(apiKeysVar, ",")
+	if len(apiKeys) == 0 || (len(apiKeys) == 1 && apiKeys[0] == "") {
+		return nil, fmt.Errorf("%w: GENAI_API_KEYS environment variable is empty for Gemini provider", ErrConfiguration)
 	}
 
 	modelCodes := []string{
@@ -34,7 +39,7 @@ func newGeminiProvider() (map[string]LLM, error) {
 	ctx := context.Background()
 
 	for _, code := range modelCodes {
-		model, err := NewGeminiModel(ctx, code, apiKey)
+		model, err := NewGeminiModel(ctx, code, apiKeys)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create Gemini model '%s': %w", code, err)
 		}
@@ -45,74 +50,92 @@ func newGeminiProvider() (map[string]LLM, error) {
 }
 
 type GeminiModel struct {
-	client *genai.Client
-	model  string
+	model   string
+	apiKeys []string
 }
 
-func NewGeminiModel(ctx context.Context, modelCode, apiKey string) (*GeminiModel, error) {
-	if apiKey == "" {
-		return nil, fmt.Errorf("%w: GENAI_API_KEY is required for GeminiModel", ErrConfiguration)
-	}
-
-	client, err := genai.NewClient(ctx, &genai.ClientConfig{
-		APIKey:  apiKey,
-		Backend: genai.BackendGeminiAPI,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create genai client: %w", err)
+func NewGeminiModel(ctx context.Context, modelCode string, apiKeys []string) (*GeminiModel, error) {
+	if len(apiKeys) == 0 {
+		return nil, fmt.Errorf("%w: at least one API key is required for GeminiModel", ErrConfiguration)
 	}
 
 	return &GeminiModel{
-		client: client,
-		model:  modelCode,
+		model:   modelCode,
+		apiKeys: apiKeys,
 	}, nil
 }
 
 // Generate performs a non-streaming text generation.
 func (m *GeminiModel) Generate(ctx context.Context, prompt string, config *Config) (string, error) {
 	genConfig := getGenConfig(config)
+	var lastErr error
 
-	resp, err := m.client.Models.GenerateContent(ctx,
-		m.model,
-		genai.Text(prompt),
-		genConfig,
-	)
-	if err != nil {
-		return "", fmt.Errorf("%w: %v", ErrGeneration, err)
+	for _, apiKey := range m.apiKeys {
+		client, err := genai.NewClient(ctx, &genai.ClientConfig{APIKey: apiKey, Backend: genai.BackendGeminiAPI})
+		if err != nil {
+			lastErr = fmt.Errorf("failed to create genai client: %w", err)
+			continue
+		}
+
+		resp, err := client.Models.GenerateContent(ctx, m.model, genai.Text(prompt), genConfig)
+		client.Close()
+
+		if err != nil {
+			lastErr = fmt.Errorf("%w: %v", ErrGeneration, err)
+			continue
+		}
+
+		if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
+			return "", fmt.Errorf("%w: no content in response", ErrGeneration)
+		}
+
+		return resp.Text(), nil
 	}
 
-	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
-		return "", fmt.Errorf("%w: no content in response", ErrGeneration)
-	}
-
-	return resp.Text(), nil
+	return "", fmt.Errorf("all API keys failed: %w", lastErr)
 }
 
 // GenerateStream performs a streaming text generation.
 func (m *GeminiModel) GenerateStream(ctx context.Context, prompt string, config *Config) (<-chan string, <-chan error) {
 	genConfig := getGenConfig(config)
-
 	outCh := make(chan string)
 	errCh := make(chan error, 1)
 
 	go func() {
 		defer close(outCh)
 		defer close(errCh)
+		var lastErr error
 
-		iter := m.client.Models.GenerateContentStream(ctx,
-			m.model,
-			genai.Text(prompt),
-			genConfig,
-		)
-		for resp, err := range iter {
+		for _, apiKey := range m.apiKeys {
+			client, err := genai.NewClient(ctx, &genai.ClientConfig{APIKey: apiKey, Backend: genai.BackendGeminiAPI})
 			if err != nil {
-				errCh <- fmt.Errorf("%w: %v", ErrGeneration, err)
-				return
+				lastErr = fmt.Errorf("failed to create genai client: %w", err)
+				continue
 			}
-			if resp != nil && len(resp.Candidates) > 0 && len(resp.Candidates[0].Content.Parts) > 0 {
-				outCh <- resp.Text()
+
+			streamErr := func() error {
+				iter := client.Models.GenerateContentStream(ctx, m.model, genai.Text(prompt), genConfig)
+				for resp, err := range iter {
+					if err != nil {
+						return err
+					}
+					if resp != nil && len(resp.Candidates) > 0 && len(resp.Candidates[0].Content.Parts) > 0 {
+						outCh <- resp.Text()
+					}
+				}
+				return nil
+			}()
+
+			client.Close()
+
+			if streamErr != nil {
+				lastErr = fmt.Errorf("%w: %v", ErrGeneration, streamErr)
+				continue
 			}
+			return // Success
 		}
+
+		errCh <- fmt.Errorf("all API keys failed: %w", lastErr)
 	}()
 	return outCh, errCh
 }
