@@ -78,8 +78,6 @@ func (m *GeminiModel) Generate(ctx context.Context, prompt string, config *Confi
 		}
 
 		resp, err := client.Models.GenerateContent(ctx, m.model, genai.Text(prompt), genConfig)
-		client.Close()
-
 		if err != nil {
 			lastErr = fmt.Errorf("%w: %v", ErrGeneration, err)
 			continue
@@ -125,8 +123,6 @@ func (m *GeminiModel) GenerateStream(ctx context.Context, prompt string, config 
 				}
 				return nil
 			}()
-
-			client.Close()
 
 			if streamErr != nil {
 				lastErr = fmt.Errorf("%w: %v", ErrGeneration, streamErr)
