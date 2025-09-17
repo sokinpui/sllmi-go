@@ -3,8 +3,10 @@ package sllmi
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"os"
 	"strings"
+	"time"
 
 	vgenai "cloud.google.com/go/vertexai/genai"
 	"cloud.google.com/go/vertexai/genai/tokenizer"
@@ -65,12 +67,22 @@ func NewGeminiModel(ctx context.Context, modelCode string, apiKeys []string) (*G
 	}, nil
 }
 
+func (m *GeminiModel) getShuffledKeys() []string {
+	shuffledKeys := make([]string, len(m.apiKeys))
+	copy(shuffledKeys, m.apiKeys)
+
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	r.Shuffle(len(shuffledKeys), func(i, j int) { shuffledKeys[i], shuffledKeys[j] = shuffledKeys[j], shuffledKeys[i] })
+
+	return shuffledKeys
+}
+
 // Generate performs a non-streaming text generation.
 func (m *GeminiModel) Generate(ctx context.Context, prompt string, config *Config) (string, error) {
 	genConfig := getGenConfig(config)
 	var lastErr error
 
-	for _, apiKey := range m.apiKeys {
+	for _, apiKey := range m.getShuffledKeys() {
 		client, err := genai.NewClient(ctx, &genai.ClientConfig{APIKey: apiKey, Backend: genai.BackendGeminiAPI})
 		if err != nil {
 			lastErr = fmt.Errorf("failed to create genai client: %w", err)
@@ -104,7 +116,7 @@ func (m *GeminiModel) GenerateStream(ctx context.Context, prompt string, config 
 		defer close(errCh)
 		var lastErr error
 
-		for _, apiKey := range m.apiKeys {
+		for _, apiKey := range m.getShuffledKeys() {
 			client, err := genai.NewClient(ctx, &genai.ClientConfig{APIKey: apiKey, Backend: genai.BackendGeminiAPI})
 			if err != nil {
 				lastErr = fmt.Errorf("failed to create genai client: %w", err)
