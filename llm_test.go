@@ -69,7 +69,7 @@ func TestGeminiModel(t *testing.T) {
 	if len(models) == 0 {
 		t.Fatal("No models available to test")
 	}
-	modelName := "gemini-2.5-flash" // Use a specific, fast model for testing
+	modelName := "gemma-3-27b-it" // Use a specific, fast model for testing
 	model, err := registry.GetModel(modelName)
 	if err != nil {
 		t.Fatalf("Failed to get model %s: %v", modelName, err)
