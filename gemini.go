@@ -19,13 +19,13 @@ func init() {
 
 func newGeminiProvider() (map[string]LLM, error) {
 	apiKeysVar := os.Getenv("GENAI_API_KEYS")
-	if apiKeysVar == "" {
-		// Return an error as the provider cannot function without an API key.
-		return nil, fmt.Errorf("%w: GENAI_API_KEYS environment variable not set for Gemini provider", ErrConfiguration)
-	}
-	apiKeys := strings.Split(apiKeysVar, ",")
-	if len(apiKeys) == 0 || (len(apiKeys) == 1 && apiKeys[0] == "") {
-		return nil, fmt.Errorf("%w: GENAI_API_KEYS environment variable is empty for Gemini provider", ErrConfiguration)
+	var apiKeys []string
+	if apiKeysVar != "" {
+		for _, key := range strings.Split(apiKeysVar, ",") {
+			if key != "" {
+				apiKeys = append(apiKeys, key)
+			}
+		}
 	}
 
 	modelCodes := []string{
@@ -57,10 +57,6 @@ type GeminiModel struct {
 }
 
 func NewGeminiModel(ctx context.Context, modelCode string, apiKeys []string) (*GeminiModel, error) {
-	if len(apiKeys) == 0 {
-		return nil, fmt.Errorf("%w: at least one API key is required for GeminiModel", ErrConfiguration)
-	}
-
 	return &GeminiModel{
 		model:   modelCode,
 		apiKeys: apiKeys,
@@ -79,6 +75,10 @@ func (m *GeminiModel) getShuffledKeys() []string {
 
 // Generate performs a non-streaming text generation.
 func (m *GeminiModel) Generate(ctx context.Context, prompt string, config *Config) (string, error) {
+	if len(m.apiKeys) == 0 {
+		return "", fmt.Errorf("%w: API key is required for generation", ErrConfiguration)
+	}
+
 	genConfig := getGenConfig(config)
 	var lastErr error
 
@@ -114,6 +114,12 @@ func (m *GeminiModel) GenerateStream(ctx context.Context, prompt string, config 
 	go func() {
 		defer close(outCh)
 		defer close(errCh)
+
+		if len(m.apiKeys) == 0 {
+			errCh <- fmt.Errorf("%w: API key is required for generation", ErrConfiguration)
+			return
+		}
+
 		var lastErr error
 
 		for _, apiKey := range m.getShuffledKeys() {
