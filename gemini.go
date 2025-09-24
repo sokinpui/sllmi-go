@@ -73,9 +73,14 @@ func (m *GeminiModel) getShuffledKeys() []string {
 }
 
 // Generate performs a non-streaming text generation.
-func (m *GeminiModel) Generate(ctx context.Context, prompt string, config *Config) (string, error) {
+func (m *GeminiModel) Generate(ctx context.Context, prompt string, images []string, config *Config) (string, error) {
 	if len(m.apiKeys) == 0 {
 		return "", fmt.Errorf("%w: API key is required for generation", ErrConfiguration)
+	}
+
+	content, err := buildContent(prompt, images)
+	if err != nil {
+		return "", err
 	}
 
 	genConfig := getGenConfig(config)
@@ -88,7 +93,7 @@ func (m *GeminiModel) Generate(ctx context.Context, prompt string, config *Confi
 			continue
 		}
 
-		resp, err := client.Models.GenerateContent(ctx, m.model, genai.Text(prompt), genConfig)
+		resp, err := client.Models.GenerateContent(ctx, m.model, content, genConfig)
 		if err != nil {
 			lastErr = fmt.Errorf("%w: %v", ErrGeneration, err)
 			continue
@@ -105,7 +110,7 @@ func (m *GeminiModel) Generate(ctx context.Context, prompt string, config *Confi
 }
 
 // GenerateStream performs a streaming text generation.
-func (m *GeminiModel) GenerateStream(ctx context.Context, prompt string, config *Config) (<-chan string, <-chan error) {
+func (m *GeminiModel) GenerateStream(ctx context.Context, prompt string, images []string, config *Config) (<-chan string, <-chan error) {
 	genConfig := getGenConfig(config)
 	outCh := make(chan string)
 	errCh := make(chan error, 1)
@@ -119,6 +124,12 @@ func (m *GeminiModel) GenerateStream(ctx context.Context, prompt string, config 
 			return
 		}
 
+		content, err := buildContent(prompt, images)
+		if err != nil {
+			errCh <- err
+			return
+		}
+
 		var lastErr error
 
 		for _, apiKey := range m.getShuffledKeys() {
@@ -129,7 +140,7 @@ func (m *GeminiModel) GenerateStream(ctx context.Context, prompt string, config 
 			}
 
 			streamErr := func() error {
-				iter := client.Models.GenerateContentStream(ctx, m.model, genai.Text(prompt), genConfig)
+				iter := client.Models.GenerateContentStream(ctx, m.model, content, genConfig)
 				for resp, err := range iter {
 					if err != nil {
 						return err
@@ -151,6 +162,26 @@ func (m *GeminiModel) GenerateStream(ctx context.Context, prompt string, config 
 		errCh <- fmt.Errorf("all API keys failed: %w", lastErr)
 	}()
 	return outCh, errCh
+}
+
+func buildContent(prompt string, images []string) ([]*genai.Content, error) {
+	parts := []*genai.Part{genai.NewPartFromText(prompt)}
+
+	for _, imgPath := range images {
+
+		imgBytes, err := os.ReadFile(imgPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read image '%s': %w", imgPath, err)
+		}
+
+		parts = append(parts, genai.NewPartFromBytes(imgBytes, imgPath))
+	}
+
+	contents := []*genai.Content{
+		genai.NewContentFromParts(parts, genai.RoleUser),
+	}
+
+	return contents, nil
 }
 
 // CountTokens counts the number of tokens in a prompt.
