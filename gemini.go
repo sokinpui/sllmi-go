@@ -173,10 +173,18 @@ func getGenConfig(config *Config) *genai.GenerateContentConfig {
 		return &genai.GenerateContentConfig{}
 	}
 
+	var tools = []*genai.Tool{
+		{
+			GoogleSearch: &genai.GoogleSearch{},
+			URLContext:   &genai.URLContext{},
+		},
+	}
+
 	return &genai.GenerateContentConfig{
 		Temperature:     config.Temperature,
 		TopP:            config.TopP,
 		TopK:            config.TopK,
 		MaxOutputTokens: config.OutputLength,
+		Tools:           tools,
 	}
 }
