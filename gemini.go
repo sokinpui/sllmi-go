@@ -174,7 +174,7 @@ func buildContent(prompt string, imgPaths []string) ([]*genai.Content, error) {
 			return nil, fmt.Errorf("failed to read image '%s': %w", imgPath, err)
 		}
 
-		parts = append(parts, genai.NewPartFromBytes(imgBytes, imgPath))
+		parts = append(parts, genai.NewPartFromBytes(imgBytes, "image/jpeg"))
 	}
 
 	contents := []*genai.Content{
