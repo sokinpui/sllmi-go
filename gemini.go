@@ -73,12 +73,12 @@ func (m *GeminiModel) getShuffledKeys() []string {
 }
 
 // Generate performs a non-streaming text generation.
-func (m *GeminiModel) Generate(ctx context.Context, prompt string, images []string, config *Config) (string, error) {
+func (m *GeminiModel) Generate(ctx context.Context, prompt string, imgPaths []string, config *Config) (string, error) {
 	if len(m.apiKeys) == 0 {
 		return "", fmt.Errorf("%w: API key is required for generation", ErrConfiguration)
 	}
 
-	content, err := buildContent(prompt, images)
+	content, err := buildContent(prompt, imgPaths)
 	if err != nil {
 		return "", err
 	}
@@ -110,7 +110,7 @@ func (m *GeminiModel) Generate(ctx context.Context, prompt string, images []stri
 }
 
 // GenerateStream performs a streaming text generation.
-func (m *GeminiModel) GenerateStream(ctx context.Context, prompt string, images []string, config *Config) (<-chan string, <-chan error) {
+func (m *GeminiModel) GenerateStream(ctx context.Context, prompt string, imgPaths []string, config *Config) (<-chan string, <-chan error) {
 	genConfig := getGenConfig(config)
 	outCh := make(chan string)
 	errCh := make(chan error, 1)
@@ -124,7 +124,7 @@ func (m *GeminiModel) GenerateStream(ctx context.Context, prompt string, images 
 			return
 		}
 
-		content, err := buildContent(prompt, images)
+		content, err := buildContent(prompt, imgPaths)
 		if err != nil {
 			errCh <- err
 			return
@@ -164,10 +164,10 @@ func (m *GeminiModel) GenerateStream(ctx context.Context, prompt string, images 
 	return outCh, errCh
 }
 
-func buildContent(prompt string, images []string) ([]*genai.Content, error) {
+func buildContent(prompt string, imgPaths []string) ([]*genai.Content, error) {
 	parts := []*genai.Part{genai.NewPartFromText(prompt)}
 
-	for _, imgPath := range images {
+	for _, imgPath := range imgPaths {
 
 		imgBytes, err := os.ReadFile(imgPath)
 		if err != nil {

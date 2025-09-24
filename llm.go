@@ -6,8 +6,8 @@ import (
 )
 
 type LLM interface {
-	Generate(ctx context.Context, prompt string, images []string, config *Config) (string, error)
-	GenerateStream(ctx context.Context, prompt string, images []string, config *Config) (<-chan string, <-chan error)
+	Generate(ctx context.Context, prompt string, imgPaths []string, config *Config) (string, error)
+	GenerateStream(ctx context.Context, prompt string, imgPaths []string, config *Config) (<-chan string, <-chan error)
 	CountTokens(prompt string) (int, error)
 }
 
