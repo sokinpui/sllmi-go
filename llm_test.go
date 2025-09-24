@@ -13,14 +13,12 @@ import (
 
 // checkAPIKey skips the test if the GENAI_API_KEY is not set.
 func checkAPIKey(t *testing.T) {
-	if os.Getenv("GENAI_API_KEY") == "" {
-		t.Skip("Skipping test: GENAI_API_KEY is not set.")
+	if os.Getenv("GENAI_API_KEYS") == "" {
+		t.Skip("Skipping test: GENAI_API_KEYS is not set.")
 	}
 }
 
 func TestLLMRegistry(t *testing.T) {
-	checkAPIKey(t)
-
 	registry, err := sllmi.New()
 	if err != nil {
 		t.Fatalf("New() failed: %v", err)
@@ -142,5 +140,60 @@ func TestGeminiModel(t *testing.T) {
 		}
 		fmt.Printf("\n--- GenerateStream() Response ---\n%s\n-------------------------------\n", fullResponse)
 		// t.Logf is still useful for verbose mode
+	})
+}
+
+func TestGeminiModel_NoAPIKey(t *testing.T) {
+	originalAPIKeys := os.Getenv("GENAI_API_KEYS")
+	os.Unsetenv("GENAI_API_KEYS")
+	defer os.Setenv("GENAI_API_KEYS", originalAPIKeys)
+
+	registry, err := sllmi.New()
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+
+	modelName := "gemma-3-27b-it"
+	model, err := registry.GetModel(modelName)
+	if err != nil {
+		t.Fatalf("Failed to get model %s: %v", modelName, err)
+	}
+
+	prompt := "This is a test prompt."
+
+	t.Run("CountTokens_NoKey", func(t *testing.T) {
+		count, err := model.CountTokens(prompt)
+		if err != nil {
+			t.Errorf("CountTokens() with no API key failed: %v", err)
+		}
+		if count <= 0 {
+			t.Errorf("CountTokens() with no API key returned an invalid count: %d", count)
+		}
+	})
+
+	t.Run("Generate_NoKey", func(t *testing.T) {
+		_, err := model.Generate(context.Background(), prompt, nil)
+		if err == nil {
+			t.Error("Generate() with no API key was expected to fail, but it did not")
+		}
+		if !strings.Contains(err.Error(), "API key is required for generation") {
+			t.Errorf("Generate() with no API key returned an unexpected error: %v", err)
+		}
+	})
+
+	t.Run("GenerateStream_NoKey", func(t *testing.T) {
+		outCh, errCh := model.GenerateStream(context.Background(), prompt, nil)
+
+		// Drain the output channel to prevent goroutine leaks, though it should be empty.
+		for range outCh {
+		}
+
+		err := <-errCh
+		if err == nil {
+			t.Error("GenerateStream() with no API key was expected to fail, but it did not")
+		}
+		if !strings.Contains(err.Error(), "API key is required for generation") {
+			t.Errorf("GenerateStream() with no API key returned an unexpected error: %v", err)
+		}
 	})
 }
