@@ -8,9 +8,10 @@ import (
 	"strings"
 	"time"
 
-	vgenai "cloud.google.com/go/vertexai/genai"
-	"cloud.google.com/go/vertexai/genai/tokenizer"
+	// vgenai "cloud.google.com/go/vertexai/genai"
+	// "cloud.google.com/go/vertexai/genai/tokenizer"
 	"google.golang.org/genai"
+	"google.golang.org/genai/tokenizer"
 )
 
 func init() {
@@ -156,12 +157,12 @@ func (m *GeminiModel) GenerateStream(ctx context.Context, prompt string, config 
 
 // CountTokens counts the number of tokens in a prompt.
 func (m *GeminiModel) CountTokens(prompt string) (int, error) {
-	tok, err := tokenizer.New("gemini-1.5-flash")
+	tok, err := tokenizer.NewLocalTokenizer("gemini-2.5-flash")
 	if err != nil {
 		return 0, fmt.Errorf("token counting failed: %w", err)
 	}
 
-	ntoks, err := tok.CountTokens(vgenai.Text(prompt))
+	ntoks, err := tok.CountTokens(genai.Text(prompt), nil)
 	if err != nil {
 		return 0, fmt.Errorf("token counting failed: %w", err)
 	}
