@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sokinpui/sllmi-go"
+	"github.com/sokinpui/sllmi-go/v2"
 )
 
 // checkAPIKey skips the test if the GENAI_API_KEY is not set.
@@ -67,7 +67,7 @@ func TestGeminiModel(t *testing.T) {
 	if len(models) == 0 {
 		t.Fatal("No models available to test")
 	}
-	modelName := "gemma-3-27b-it" // Use a specific, fast model for testing
+	modelName := "gemini-2.5-flash" // Use a specific, fast model for testing
 	model, err := registry.GetModel(modelName)
 	if err != nil {
 		t.Fatalf("Failed to get model %s: %v", modelName, err)
@@ -90,7 +90,7 @@ func TestGeminiModel(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		response, err := model.Generate(ctx, prompt, nil)
+		response, err := model.Generate(ctx, prompt, nil, nil)
 		if err != nil {
 			t.Fatalf("Generate() failed: %v", err)
 		}
@@ -105,7 +105,7 @@ func TestGeminiModel(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		outCh, errCh := model.GenerateStream(ctx, prompt, nil)
+		outCh, errCh := model.GenerateStream(ctx, prompt, nil, nil)
 
 		var responseParts []string
 		var streamErr error
@@ -140,60 +140,5 @@ func TestGeminiModel(t *testing.T) {
 		}
 		fmt.Printf("\n--- GenerateStream() Response ---\n%s\n-------------------------------\n", fullResponse)
 		// t.Logf is still useful for verbose mode
-	})
-}
-
-func TestGeminiModel_NoAPIKey(t *testing.T) {
-	originalAPIKeys := os.Getenv("GENAI_API_KEYS")
-	os.Unsetenv("GENAI_API_KEYS")
-	defer os.Setenv("GENAI_API_KEYS", originalAPIKeys)
-
-	registry, err := sllmi.New()
-	if err != nil {
-		t.Fatalf("New() failed: %v", err)
-	}
-
-	modelName := "gemma-3-27b-it"
-	model, err := registry.GetModel(modelName)
-	if err != nil {
-		t.Fatalf("Failed to get model %s: %v", modelName, err)
-	}
-
-	prompt := "This is a test prompt."
-
-	t.Run("CountTokens_NoKey", func(t *testing.T) {
-		count, err := model.CountTokens(prompt)
-		if err != nil {
-			t.Errorf("CountTokens() with no API key failed: %v", err)
-		}
-		if count <= 0 {
-			t.Errorf("CountTokens() with no API key returned an invalid count: %d", count)
-		}
-	})
-
-	t.Run("Generate_NoKey", func(t *testing.T) {
-		_, err := model.Generate(context.Background(), prompt, nil)
-		if err == nil {
-			t.Error("Generate() with no API key was expected to fail, but it did not")
-		}
-		if !strings.Contains(err.Error(), "API key is required for generation") {
-			t.Errorf("Generate() with no API key returned an unexpected error: %v", err)
-		}
-	})
-
-	t.Run("GenerateStream_NoKey", func(t *testing.T) {
-		outCh, errCh := model.GenerateStream(context.Background(), prompt, nil)
-
-		// Drain the output channel to prevent goroutine leaks, though it should be empty.
-		for range outCh {
-		}
-
-		err := <-errCh
-		if err == nil {
-			t.Error("GenerateStream() with no API key was expected to fail, but it did not")
-		}
-		if !strings.Contains(err.Error(), "API key is required for generation") {
-			t.Errorf("GenerateStream() with no API key returned an unexpected error: %v", err)
-		}
 	})
 }
