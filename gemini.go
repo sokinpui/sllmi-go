@@ -75,12 +75,12 @@ func (m *GeminiModel) getShuffledKeys() []string {
 }
 
 // Generate performs a non-streaming text generation.
-func (m *GeminiModel) Generate(ctx context.Context, prompt string, imgPaths []string, config *Config) (string, error) {
+func (m *GeminiModel) Generate(ctx context.Context, prompt string, images [][]byte, config *Config) (string, error) {
 	if len(m.apiKeys) == 0 {
 		return "", fmt.Errorf("%w: API key is required for generation", ErrConfiguration)
 	}
 
-	content, err := buildContent(prompt, imgPaths)
+	content, err := buildContent(prompt, images)
 	if err != nil {
 		return "", err
 	}
@@ -112,7 +112,7 @@ func (m *GeminiModel) Generate(ctx context.Context, prompt string, imgPaths []st
 }
 
 // GenerateStream performs a streaming text generation.
-func (m *GeminiModel) GenerateStream(ctx context.Context, prompt string, imgPaths []string, config *Config) (<-chan string, <-chan error) {
+func (m *GeminiModel) GenerateStream(ctx context.Context, prompt string, images [][]byte, config *Config) (<-chan string, <-chan error) {
 	genConfig := getGenConfig(config)
 	outCh := make(chan string)
 	errCh := make(chan error, 1)
@@ -126,7 +126,7 @@ func (m *GeminiModel) GenerateStream(ctx context.Context, prompt string, imgPath
 			return
 		}
 
-		content, err := buildContent(prompt, imgPaths)
+		content, err := buildContent(prompt, images)
 		if err != nil {
 			errCh <- err
 			return
@@ -166,17 +166,11 @@ func (m *GeminiModel) GenerateStream(ctx context.Context, prompt string, imgPath
 	return outCh, errCh
 }
 
-func buildContent(prompt string, imgPaths []string) ([]*genai.Content, error) {
+func buildContent(prompt string, images [][]byte) ([]*genai.Content, error) {
 	parts := []*genai.Part{genai.NewPartFromText(prompt)}
 
-	for _, imgPath := range imgPaths {
-
-		imgBytes, err := os.ReadFile(imgPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read image '%s': %w", imgPath, err)
-		}
-
-		parts = append(parts, genai.NewPartFromBytes(imgBytes, "image/jpeg"))
+	for _, imgBytes := range images {
+		parts = append(parts, genai.NewPartFromBytes(imgBytes, "image/png"))
 	}
 
 	contents := []*genai.Content{
