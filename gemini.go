@@ -170,7 +170,7 @@ func buildContent(prompt string, images [][]byte) ([]*genai.Content, error) {
 	parts := []*genai.Part{genai.NewPartFromText(prompt)}
 
 	for _, imgBytes := range images {
-		parts = append(parts, genai.NewPartFromBytes(imgBytes, "image/png"))
+		parts = append(parts, genai.NewPartFromBytes(imgBytes, "image/jpeg"))
 	}
 
 	contents := []*genai.Content{
