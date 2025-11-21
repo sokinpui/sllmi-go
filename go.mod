@@ -2,7 +2,10 @@ module github.com/sokinpui/sllmi-go/v2
 
 go 1.24.1
 
-require google.golang.org/genai v1.25.0
+require (
+	github.com/revrost/go-openrouter v1.0.0
+	google.golang.org/genai v1.25.0
+)
 
 require (
 	cloud.google.com/go v0.121.2 // indirect
